@@ -1,0 +1,4 @@
+../Core/Src/freertos.c:98:6:MX_FREERTOS_Init	1
+../Core/Src/freertos.c:147:6:StartRX_Task	6
+../Core/Src/freertos.c:198:6:Start_TX_Task	2
+../Core/Src/freertos.c:223:12:rpmsg_recv_callback	2

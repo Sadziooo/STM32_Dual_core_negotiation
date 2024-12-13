@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 #include "openamp.h"
 #include "usart.h"
 #include "gpio.h"
@@ -53,6 +54,7 @@
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
+void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -60,29 +62,6 @@
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-#define  RPMSG_SERVICE_NAME	"openamp_test"
-
-static volatile int message_received;
-volatile unsigned int received_data;
-static struct rpmsg_endpoint rp_endpoint;
-char data[100];
-
-static int rpmsg_recv_callback (struct rpmsg_endpoint *ept, void *data, size_t len, uint32_t src, void *priv) {
-	received_data = *((unsigned int *) data);
-	message_received = 1;
-
-	return 0;
-}
-
-unsigned int receive_message (void) {
-	while (message_received == 0) {
-		OPENAMP_check_for_message();
-	}
-
-	message_received = 0;
-
-	return 0;
-}
 
 /* USER CODE END 0 */
 
@@ -130,39 +109,25 @@ int main(void)
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  int32_t status = 0;
-
-  MAILBOX_Init();
-
-  if (MX_OPENAMP_Init(RPMSG_REMOTE, NULL) != HAL_OK) {
-	  Error_Handler();
-  }
-
-  status = OPENAMP_create_endpoint (&rp_endpoint, RPMSG_SERVICE_NAME, RPMSG_ADDR_ANY, rpmsg_recv_callback, NULL);
-  if (status < 0) {
-	  Error_Handler();
-  }
-
-  receive_message();
-
-  sprintf (data, "%u\n\r", received_data);
-
-  HAL_UART_Transmit(&huart3, data, strlen(data), 100);
-
 //  OPENAMP_DeInit();
 
   /* USER CODE END 2 */
+
+  /* Init scheduler */
+  osKernelInitialize();
+
+  /* Call init function for freertos objects (in cmsis_os2.c) */
+  MX_FREERTOS_Init();
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
-	  receive_message();
-
-	  sprintf (data, "%u\n\r", received_data);
-
-	  HAL_UART_Transmit(&huart3, data, strlen(data), 100);
 
     /* USER CODE END WHILE */
 
@@ -174,6 +139,27 @@ int main(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM7 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM7) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

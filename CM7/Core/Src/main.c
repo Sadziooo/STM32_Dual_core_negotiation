@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 #include "openamp.h"
 #include "gpio.h"
 
@@ -54,6 +55,7 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MPU_Config(void);
+void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -61,19 +63,6 @@ static void MPU_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-#define  RPMSG_CHAN_NAME	"openamp_test"
-
-uint32_t message = 0;
-
-static volatile int message_received;
-static volatile int service_created;
-volatile unsigned int received_data;
-static struct rpmsg_endpoint rp_endpoint;
-
-static int rpmsg_recv_callback (struct rpmsg_endpoint *ept, void *data, size_t len, uint32_t src, void *priv);
-unsigned int receive_message (void);
-void service_destroy_cb (struct rpmsg_endpoint *ept);
-void new_service_cb (struct rpmsg_device *rdev, const char *name, uint32_t dest);
 
 /* USER CODE END 0 */
 
@@ -148,39 +137,18 @@ Error_Handler();
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
 
-  int32_t status = 0;
-
-  MAILBOX_Init();
-
-  rpmsg_init_ept(&rp_endpoint, RPMSG_CHAN_NAME, RPMSG_ADDR_ANY, RPMSG_ADDR_ANY, NULL, NULL);
-
-  if (MX_OPENAMP_Init(RPMSG_MASTER, new_service_cb) != HAL_OK) {
-	  Error_Handler();
-  }
-
-  OPENAMP_Wait_EndPointready(&rp_endpoint);
-
-	while(message < 11) {
-		status = OPENAMP_send (&rp_endpoint, &message, sizeof(message));
-		message++;
-		if (status < 0) {
-			Error_Handler();
-		}
-
-		HAL_Delay(500);
-		if (message > 10) {
-			message = 0;
-		}
-	}
-
-
-	while(service_created) {
-		OPENAMP_check_for_message();
-	}
-
-	OPENAMP_DeInit();
-
   /* USER CODE END 2 */
+
+  /* Init scheduler */
+  osKernelInitialize();
+
+  /* Call init function for freertos objects (in cmsis_os2.c) */
+  MX_FREERTOS_Init();
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -255,23 +223,6 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-static int rpmsg_recv_callback (struct rpmsg_endpoint *ept, void *data, size_t len, uint32_t src, void *priv) {
-	received_data = *((unsigned int *) data);
-	message_received = 1;
-
-	return 0;
-}
-
-void service_destroy_cb (struct rpmsg_endpoint *ept) {
-	service_created = 0;
-}
-
-void new_service_cb (struct rpmsg_device *rdev, const char *name, uint32_t dest) {
-	OPENAMP_create_endpoint(&rp_endpoint, name, dest, rpmsg_recv_callback, service_destroy_cb);
-
-	service_created = 1;
-}
-
 /* USER CODE END 4 */
 
  /* MPU Configuration */
@@ -301,6 +252,27 @@ void MPU_Config(void)
   /* Enables the MPU */
   HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
 
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM6 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM6) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
 }
 
 /**
